@@ -211,4 +211,7 @@ include_directories(
 add_executable(variance src/variance.cpp)
 target_link_libraries(variance ${catkin_LIBRARIES})
 
+add_executable(test_42 src/test_42.cpp)
+target_link_libraries(test_42 ${catkin_LIBRARIES})
+
 ##target_link_libraries (variance Eigen3::Eigen)
