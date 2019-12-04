@@ -3,6 +3,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <vector>
+#include <iostream>
 //#include <math.h>
 //#include <functional>
 //#include <numeric>
@@ -31,11 +32,11 @@ using namespace std;
 //Matrix<double> cov(6,6);
 
 // Global Variables
-size_t n_data_max = 100;
-double vars[6] = {1,1,1,1,1,1};
-double cov[36] = {0};
-ros::Publisher pub;
-vector<vector<double>> data;
+static size_t n_data_max = 100;
+static double vars[6] = {1,1,1,1,1,1};
+static double cov[36] = {0};
+static ros::Publisher pub;
+static vector<vector<double>> data(6, vector<double>(1, 0));
 
 
 double avg( const vector<double> vec ) {
@@ -79,8 +80,10 @@ void updateData( const nav_msgs::Odometry msg ) {
 void callback( nav_msgs::Odometry msg ) {
   updateData(msg);
   variances(data);
+
   for( size_t i = 0 ; i < 6 ; i++ )
     cov[i*7] = vars[i];
+
   for( size_t i = 0 ; i < 36 ; i++ )
     msg.pose.covariance[i] = cov[i];
 
@@ -94,9 +97,13 @@ int main(int argc, char **argv) {
   string topic_in  = "jackal_velocity_controller/odom";
   string topic_out = "modified/odom";
 
-  //ROS_INFO("Starting Node: ros_covariance");
-  ros::Publisher  pub = nh.advertise<nav_msgs::Odometry>(topic_out, 10);
+  ROS_INFO("Starting Node: covariance_calculator");
+  pub = nh.advertise<nav_msgs::Odometry>(topic_out, 10);
   ros::Subscriber sub = nh.subscribe<nav_msgs::Odometry>(topic_in, 10, callback);
 
-  ros::spin();
+  while(ros::ok()) {
+    ros::spin();
+  }
+
+  return 0;
 }
