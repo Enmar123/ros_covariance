@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
@@ -22,6 +23,11 @@ int main() {
   for( int i = 0 ; i < 6 ; i++ )
     cout << foo[i] << endl;
 
-
+  cout << "----------------------" << endl;
+  vector<size_t> bar = {0};
+  for( size_t i = 0 ; i < 6 ; i++ ){
+    bar.push_back(i);
+    cout << bar[i] << endl;
+  }
   return 0;
 }

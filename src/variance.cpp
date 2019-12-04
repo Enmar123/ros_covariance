@@ -32,36 +32,49 @@ using namespace std;
 //Matrix<double> cov(6,6);
 
 // Global Variables
+static int debug = 1;
 static size_t n_data_max = 100;
-static double vars[6] = {1,1,1,1,1,1};
+static double vars[6] = {0};
 static double cov[36] = {0};
 static ros::Publisher pub;
 static vector<vector<double>> data(6, vector<double>(1, 0));
 
 
 double avg( const vector<double> vec ) {
-  double sum = std::accumulate(vec.begin(), vec.end(), 0);
+  // Calculate the average of an array
+  double sum = std::accumulate(vec.begin(), vec.end(), 0.0); // fricking 0.0 ...
   double mean = sum/vec.size();
+  cout << vec[0] << endl;
+  cout << sum << endl;
+  cout << mean << endl;
   return mean;
 }
 
 double variance( const vector<double> vec ) {
+  // Calculate the variance of an array
   double mean = avg(vec);
-  unsigned long int n_vals = vec.size();
+  size_t n_vals = vec.size();
   vector<double> vals(n_vals);
-  for( unsigned long int i = 0; i == n_vals; i++)
+  for( size_t i = 0; i < n_vals; i++){                     // ah... i had put ==
     vals[i] = pow((vec[i] - mean), 2);
-  double sum = std::accumulate(vals.begin(), vals.end(), 0);
+    cout << vals[i] << " ";
+  }
+  cout << endl;
+  double sum = std::accumulate(vals.begin(), vals.end(), 0.0); // fricking 0.0 ...
   double ans = sum/(n_vals - 1);
+  cout << ans << endl;
+  cout << endl;
   return ans;
 }
 
 void variances( const vector<vector<double>> data ) {
+  // Create a 1x6 array of variances
   for( size_t i = 0; i < 6; i++)
     vars[i] = variance( data[i] );
 }
 
 void updateData( const nav_msgs::Odometry msg ) {
+  // Update data for variance calculation
   tf2::Quaternion quat;
   tf2::convert(msg.pose.pose.orientation, quat);
 
@@ -72,14 +85,29 @@ void updateData( const nav_msgs::Odometry msg ) {
   data[4].push_back(quat.getY());
   data[5].push_back(quat.getZ());
 
-  if( data.size() > n_data_max )
+  if( data[0].size() > n_data_max ){
     for( size_t i = 0 ; i < 6 ; i++ )
-      data[i].pop_back();
+      data[i].erase(data[i].begin());
+  }
+  // Debug code
+  if (debug == 1){
+    cout << "data    ";
+    for( size_t i = 0 ; i < data[0].size() ; i++ )
+      cout << data[0][i] << " ";
+    cout << endl;
+  }
 }
 
 void callback( nav_msgs::Odometry msg ) {
   updateData(msg);
   variances(data);
+
+  if (debug == 1){
+    cout << "vars    ";
+    for( size_t i = 0 ; i < 6; i++)
+      cout << vars[i] << " ";
+    cout << endl;
+  }
 
   for( size_t i = 0 ; i < 6 ; i++ )
     cov[i*7] = vars[i];
