@@ -32,7 +32,7 @@ using namespace std;
 //Matrix<double> cov(6,6);
 
 // Global Variables
-static int debug = 1;
+static int debug = 0;
 static size_t n_data_max = 100;
 static double vars[6] = {0};
 static double cov[36] = {0};
@@ -44,9 +44,6 @@ double avg( const vector<double> vec ) {
   // Calculate the average of an array
   double sum = std::accumulate(vec.begin(), vec.end(), 0.0); // fricking 0.0 ...
   double mean = sum/vec.size();
-  cout << vec[0] << endl;
-  cout << sum << endl;
-  cout << mean << endl;
   return mean;
 }
 
@@ -57,13 +54,9 @@ double variance( const vector<double> vec ) {
   vector<double> vals(n_vals);
   for( size_t i = 0; i < n_vals; i++){                     // ah... i had put ==
     vals[i] = pow((vec[i] - mean), 2);
-    cout << vals[i] << " ";
   }
-  cout << endl;
   double sum = std::accumulate(vals.begin(), vals.end(), 0.0); // fricking 0.0 ...
   double ans = sum/(n_vals - 1);
-  cout << ans << endl;
-  cout << endl;
   return ans;
 }
 
@@ -89,8 +82,10 @@ void updateData( const nav_msgs::Odometry msg ) {
     for( size_t i = 0 ; i < 6 ; i++ )
       data[i].erase(data[i].begin());
   }
+
   // Debug code
   if (debug == 1){
+    cout << "--------" << endl;
     cout << "data    ";
     for( size_t i = 0 ; i < data[0].size() ; i++ )
       cout << data[0][i] << " ";
@@ -99,9 +94,11 @@ void updateData( const nav_msgs::Odometry msg ) {
 }
 
 void callback( nav_msgs::Odometry msg ) {
+  // Obtain Odom msg and modify covariance matrix
   updateData(msg);
   variances(data);
 
+  // Debug Code
   if (debug == 1){
     cout << "vars    ";
     for( size_t i = 0 ; i < 6; i++)
