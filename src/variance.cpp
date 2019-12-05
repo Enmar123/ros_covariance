@@ -34,20 +34,21 @@ using namespace std;
 // Global Variables
 static int debug = 0;
 static size_t n_data_max = 100;
-static double vars[6] = {0};
-static double cov[36] = {0};
+static double vars[12] = {0};
+static double pos_cov[36] = {0};
+static double vel_cov[36] = {0};
 static ros::Publisher pub;
-static vector<vector<double>> data(6, vector<double>(1, 0));
+static vector<vector<double>> data(12, vector<double>(1, 0));
 
 
-double avg( const vector<double> vec ) {
+double avg( const vector<double> &vec ) {
   // Calculate the average of an array
   double sum = std::accumulate(vec.begin(), vec.end(), 0.0); // fricking 0.0 ...
   double mean = sum/vec.size();
   return mean;
 }
 
-double variance( const vector<double> vec ) {
+double variance( const vector<double> &vec ) {
   // Calculate the variance of an array
   double mean = avg(vec);
   size_t n_vals = vec.size();
@@ -60,13 +61,13 @@ double variance( const vector<double> vec ) {
   return ans;
 }
 
-void variances( const vector<vector<double>> data ) {
-  // Create a 1x6 array of variances
-  for( size_t i = 0; i < 6; i++)
+void variances( const vector<vector<double>> &data ) {
+  // Create an array of variances
+  for( size_t i = 0; i < data.size() ; i++ )
     vars[i] = variance( data[i] );
 }
 
-void updateData( const nav_msgs::Odometry msg ) {
+void updateData( const nav_msgs::Odometry &msg ) {
   // Update data for variance calculation
   tf2::Quaternion quat;
   tf2::convert(msg.pose.pose.orientation, quat);
@@ -78,13 +79,21 @@ void updateData( const nav_msgs::Odometry msg ) {
   data[4].push_back(quat.getY());
   data[5].push_back(quat.getZ());
 
-  if( data[0].size() > n_data_max ){
-    for( size_t i = 0 ; i < 6 ; i++ )
+  data[6].push_back(msg.twist.twist.linear.x);
+  data[7].push_back(msg.twist.twist.linear.y);
+  data[8].push_back(msg.twist.twist.linear.z);
+  data[9].push_back(msg.twist.twist.angular.x);
+  data[10].push_back(msg.twist.twist.angular.y);
+  data[11].push_back(msg.twist.twist.angular.z);
+
+
+  if ( data[0].size() > n_data_max ) {
+    for ( size_t i = 0 ; i < data.size() ; i++ )
       data[i].erase(data[i].begin());
   }
 
   // Debug code
-  if (debug == 1){
+  if (debug == 1) {
     cout << "--------" << endl;
     cout << "data    ";
     for( size_t i = 0 ; i < data[0].size() ; i++ )
@@ -101,16 +110,20 @@ void callback( nav_msgs::Odometry msg ) {
   // Debug Code
   if (debug == 1){
     cout << "vars    ";
-    for( size_t i = 0 ; i < 6; i++)
+    for( size_t i = 0 ; i < data.size(); i++)
       cout << vars[i] << " ";
     cout << endl;
   }
 
-  for( size_t i = 0 ; i < 6 ; i++ )
-    cov[i*7] = vars[i];
+  for ( size_t i = 0 ; i < 6 ; i++ ){
+    pos_cov[i*7] = vars[i];
+    vel_cov[i*7] = vars[6+i];
+  }
 
-  for( size_t i = 0 ; i < 36 ; i++ )
-    msg.pose.covariance[i] = cov[i];
+  for ( size_t i = 0 ; i < 36 ; i++ ){
+    msg.pose.covariance[i] = pos_cov[i];
+    msg.twist.covariance[i] = vel_cov[i];
+  }
 
   pub.publish(msg);
 }

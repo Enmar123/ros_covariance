@@ -29,5 +29,11 @@ int main() {
     bar.push_back(i);
     cout << bar[i] << endl;
   }
+
+  cout << "----------------------" << endl;
+  vector<vector<int>> rek(5, vector<int>(5, 42));
+  cout << rek.size() << endl;
+
+
   return 0;
 }
