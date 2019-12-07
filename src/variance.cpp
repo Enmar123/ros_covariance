@@ -67,6 +67,18 @@ void variances( const vector<vector<double>> &data ) {
     vars[i] = variance( data[i] );
 }
 
+bool isDataSame() {
+  double diff;
+  for ( size_t i = 0 ; i < data.size() ; i++ ) {
+    diff = (data[i].end()[-1] - data[i].end()[-2]);
+    if ( abs(diff) <= 0 ) {
+      return false; //dunno why no work atm
+    }
+  }
+  return false;
+}
+
+
 void updateData( const nav_msgs::Odometry &msg ) {
   // Update data for variance calculation
   tf2::Quaternion quat;
@@ -86,8 +98,7 @@ void updateData( const nav_msgs::Odometry &msg ) {
   data[10].push_back(msg.twist.twist.angular.y);
   data[11].push_back(msg.twist.twist.angular.z);
 
-
-  if ( data[0].size() > n_data_max ) {
+  if ( data[0].size() > n_data_max or  isDataSame() ) {
     for ( size_t i = 0 ; i < data.size() ; i++ )
       data[i].erase(data[i].begin());
   }
@@ -101,6 +112,7 @@ void updateData( const nav_msgs::Odometry &msg ) {
     cout << endl;
   }
 }
+
 
 void callback( nav_msgs::Odometry msg ) {
   // Obtain Odom msg and modify covariance matrix
@@ -119,6 +131,11 @@ void callback( nav_msgs::Odometry msg ) {
 //    pos_cov[c] = vars[i];
 //    vel_cov[c] = vars[i+6];
 //  }
+
+  // Check for min covariance
+  for( size_t i = 0 ; i < 12 ; i++)
+    if (vars[i] < 0.001)
+      vars[i] = 0.001;     // Set min covariance value
 
   int n = 6;
   auto *u = vars;
