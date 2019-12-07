@@ -1,3 +1,11 @@
+<!--
+Launch file for covariance calculator.
+  Make sure that your param topics are in their proper name space (relative or global)
+-->
+
 <launch>
-  <node pkg="ros_covariance" name="covariance_calculator" type="variance" />
+  <node pkg="ros_covariance" name="covariance_calculator" type="variance" >
+    <param name="topic_in"   type="string"  value="/jackal_velocity_controller/odom" />
+    <param name="topic_out"  type="string"  value="odom" />  
+  </node>
 </launch>

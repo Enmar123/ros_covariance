@@ -115,10 +115,23 @@ void callback( nav_msgs::Odometry msg ) {
     cout << endl;
   }
 
-  for ( size_t i = 0 ; i < 6 ; i++ ){
-    pos_cov[i*7] = vars[i];
-    vel_cov[i*7] = vars[6+i];
+//  for ( size_t i = 0, c = 0 ; i < 6 ; ++i, c+=7 ){
+//    pos_cov[c] = vars[i];
+//    vel_cov[c] = vars[i+6];
+//  }
+
+  int n = 6;
+  auto *u = vars;
+  auto *w = vars + 6;
+  auto *p = pos_cov;
+  auto *v = vel_cov;
+  while( n-- ) {
+    *p = *u++;
+    *v = *w++;
+    p += 7;
+    v += 7;
   }
+
 
   for ( size_t i = 0 ; i < 36 ; i++ ){
     msg.pose.covariance[i] = pos_cov[i];
@@ -130,14 +143,37 @@ void callback( nav_msgs::Odometry msg ) {
 
 int main(int argc, char **argv) {
   ros::init(argc, argv, "variance");
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
 
-  string topic_in  = "jackal_velocity_controller/odom";
-  string topic_out = "modified/odom";
+  string topic_in, topic_out;
+
+//  nh.getParam("/topic_in", topic_in);
+//  nh.getParam("/topic_out", topic_out);
+
+//  ros::param::get("topic_in", topic_in);
+//  ros::param::get("topic_out", topic_out);
+
+  if (nh.getParam("topic_in", topic_in)) {
+    ROS_INFO("Got param: %s", topic_in.c_str());
+  }
+  else {
+    ROS_ERROR("Failed to get param 'topic_in'");
+  }
+
+  if (nh.getParam("topic_out", topic_out)) {
+    ROS_INFO("Got param: %s", topic_out.c_str());
+  }
+  else {
+    ROS_ERROR("Failed to get param 'topic_out'");
+  }
+
+
+//  topic_in  = "jackal_velocity_controller/odom";
+//  topic_out = "modified/odom";
 
   ROS_INFO("Starting Node: covariance_calculator");
-  pub = nh.advertise<nav_msgs::Odometry>(topic_out, 10);
-  ros::Subscriber sub = nh.subscribe<nav_msgs::Odometry>(topic_in, 10, callback);
+  pub = nh.advertise<nav_msgs::Odometry>(topic_out.c_str(), 10);
+  ros::Subscriber sub = nh.subscribe<nav_msgs::Odometry>(topic_in.c_str(), 10, callback);
 
   while(ros::ok()) {
     ros::spin();
