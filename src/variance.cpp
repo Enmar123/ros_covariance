@@ -4,7 +4,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <vector>
 #include <iostream>
-//#include <math.h>
+#include <math.h>
 //#include <functional>
 //#include <numeric>
 //#include <cmath>
@@ -13,31 +13,21 @@
 using namespace std;
 
 
-//template<typename T>
-//class Matrix {
-//public:
-//  Matrix(size_t n = 0, size_t m = 0) : m_data(n,m) { }
-//  T& operator()(size_t i, size_t j) {
-//    return m_data[i*m_m + j]; }
-//  size_t size(size_t n) const {
-//    return n==0?m_n:m_m; }
-//  std::vector<T> &data() {
-//    return  m_data; }
-//private:
-//  size_t m_n;
-//  size_t m_m;
-//  std::vector<T> m_data;
-//};
-
-//Matrix<double> cov(6,6);
-
 // Global Variables
+static bool is_filter_on = false;
+static bool is_min_variance_provided = true;
+
 static int debug = 0;
+static double diff_reject_threshold = 0;
+static double min_variance = 0.001;
+
 static size_t n_data_max = 100;
 static double vars[12] = {0};
 static double pos_cov[36] = {0};
 static double vel_cov[36] = {0};
 static ros::Publisher pub;
+
+static vector<double> min_cov(36, 0.0);
 static vector<vector<double>> data(12, vector<double>(1, 0));
 
 
@@ -57,7 +47,8 @@ double variance( const vector<double> &vec ) {
     vals[i] = pow((vec[i] - mean), 2);
   }
   double sum = std::accumulate(vals.begin(), vals.end(), 0.0); // fricking 0.0 ...
-  double ans = sum/(n_vals - 1);
+  double ans = sum/(n_vals - 1);  // Sample variance
+  //double ans = sum/(n_vals);        // Total variance
   return ans;
 }
 
@@ -66,18 +57,6 @@ void variances( const vector<vector<double>> &data ) {
   for( size_t i = 0; i < data.size() ; i++ )
     vars[i] = variance( data[i] );
 }
-
-bool isDataSame() {
-  double diff;
-  for ( size_t i = 0 ; i < data.size() ; i++ ) {
-    diff = (data[i].end()[-1] - data[i].end()[-2]);
-    if ( abs(diff) <= 0 ) {
-      return false; //dunno why no work atm
-    }
-  }
-  return false;
-}
-
 
 void updateData( const nav_msgs::Odometry &msg ) {
   // Update data for variance calculation
@@ -98,10 +77,17 @@ void updateData( const nav_msgs::Odometry &msg ) {
   data[10].push_back(msg.twist.twist.angular.y);
   data[11].push_back(msg.twist.twist.angular.z);
 
-  if ( data[0].size() > n_data_max or  isDataSame() ) {
-    for ( size_t i = 0 ; i < data.size() ; i++ )
+  double diff;
+  for( size_t i = 0 ; i < data.size() ; i++) {
+    diff = (data[i].end()[-1] - data[i].end()[-2]);
+    if( is_filter_on ){
+      if( abs(diff) <= diff_reject_threshold )
+        data[i].pop_back();
+    }
+    else if( data[i].size() > n_data_max)
       data[i].erase(data[i].begin());
   }
+
 
   // Debug code
   if (debug == 1) {
@@ -127,16 +113,12 @@ void callback( nav_msgs::Odometry msg ) {
     cout << endl;
   }
 
-//  for ( size_t i = 0, c = 0 ; i < 6 ; ++i, c+=7 ){
-//    pos_cov[c] = vars[i];
-//    vel_cov[c] = vars[i+6];
-//  }
+//  // Check for min covariance
+//  for( size_t i = 0 ; i < data.size() ; i++)
+//      if (vars[i] < min_variances[i])
+//        vars[i] = min_variances[i];     // Set min covariance value
 
-  // Check for min covariance
-  for( size_t i = 0 ; i < 12 ; i++)
-    if (vars[i] < 0.001)
-      vars[i] = 0.001;     // Set min covariance value
-
+  // Iterate to create to covariance message
   int n = 6;
   auto *u = vars;
   auto *w = vars + 6;
@@ -149,10 +131,23 @@ void callback( nav_msgs::Odometry msg ) {
     v += 7;
   }
 
-
-  for ( size_t i = 0 ; i < 36 ; i++ ){
-    msg.pose.covariance[i] = pos_cov[i];
-    msg.twist.covariance[i] = vel_cov[i];
+  for( size_t i = 0 ; i < 36 ; i++ ) {
+    if( is_min_variance_provided ) {
+      if( pos_cov[i] > msg.pose.covariance[i])
+        msg.pose.covariance[i] = pos_cov[i];
+      if( vel_cov[i] > msg.twist.covariance[i] )
+        msg.twist.covariance[i] = vel_cov[i];
+      }
+    else {
+      if( pos_cov[i] > min_variance )
+        msg.pose.covariance[i] = pos_cov[i];
+      else
+        msg.pose.covariance[i] = min_cov[i];
+      if( vel_cov[i] > min_variance )
+        msg.twist.covariance[i] = vel_cov[i];
+      else
+        msg.twist.covariance[i] = min_cov[i];
+    }
   }
 
   pub.publish(msg);
@@ -164,29 +159,27 @@ int main(int argc, char **argv) {
 
   string topic_in, topic_out;
 
-//  nh.getParam("/topic_in", topic_in);
-//  nh.getParam("/topic_out", topic_out);
-
-//  ros::param::get("topic_in", topic_in);
-//  ros::param::get("topic_out", topic_out);
-
-  if (nh.getParam("topic_in", topic_in)) {
+  if (nh.getParam("topic_in", topic_in))
     ROS_INFO("Got param: %s", topic_in.c_str());
-  }
-  else {
+  else
     ROS_ERROR("Failed to get param 'topic_in'");
-  }
 
-  if (nh.getParam("topic_out", topic_out)) {
+  if (nh.getParam("topic_out", topic_out))
     ROS_INFO("Got param: %s", topic_out.c_str());
-  }
-  else {
+  else
     ROS_ERROR("Failed to get param 'topic_out'");
-  }
+
+//  if (nh.getParam("min_varainces", min_varainces))
+//    ROS_INFO("Got param: %s", min_varainces.c_str());
+//  else
+//    ROS_ERROR("Failed to get param 'min_varainces'");
 
 
-//  topic_in  = "jackal_velocity_controller/odom";
-//  topic_out = "modified/odom";
+//  topic_in  = "/jackal_velocity_controller/odom";
+//  topic_out = "/odom";
+
+  for( size_t i=0; i < min_cov.size() ; i+=7)
+    min_cov[i] = min_variance;
 
   ROS_INFO("Starting Node: covariance_calculator");
   pub = nh.advertise<nav_msgs::Odometry>(topic_out.c_str(), 10);
